@@ -4,36 +4,108 @@ import random
 import strutils
 
 const
-  vlc = "/Applications/VLC.app/Contents/MacOS/VLC"
-  playlist = ".playlist.m3u"
-  excluded = [".DS_Store", "xplay", playlist]
+    playlist = ".playlist.m3u"
+    exclude = @[".DS_Store", "xplay", playlist]
 
-proc write(playlist : string, files : seq[string]) = 
-  var file = open(playlist, mode=fmWrite)
-  for line in files:
-    file.writeLine(line)
-  file.close()
+type
+    ScanDir = ref object of RootObj
+        dir : string
 
-if paramCount() > 0:
-  randomize()
-  let dir = paramStr(1)
-  var files: seq[string]
-  files = @[]
+    FilterList = ref object of ScanDir
+        exclude : seq[string]
+        origin : ScanDir
 
-  for i in walkDir(dir):
-    if i.kind == pcFile and not excluded.contains(i.path.splitFile().name):
-      files.add(i.path)
-  files.shuffle()
+    ShuffleList = ref object of ScanDir
+        origin : ScanDir
 
-  playlist.write(files)
+    PlFromList = ref object of RootObj
+        filename : string
+        files : seq[string]
 
-  discard 
-    startProcess(
-      command = vlc, 
-      args = ["--intf=macosx", playlist]
-    ).waitForExit()
+    Play = ref object of RootObj
+        filename : string
+        command : string
+        args : seq[string]
 
-  playlist.removeFile()
-else:
-  echo "Directory not specified"
-  echo "Usage: xplay <directory>"
+    PlTemp = ref object of Play
+        origin : Play
+
+method get(sd : ScanDir) : seq[string] {.base.} =
+    echo "Scan dir: " , sd.dir
+    if not existsDir(sd.dir):
+        raise newException(OSError, "Directory " & sd.dir & " not exists")
+    var files : seq[string] = @[]
+    for i in walkDir(sd.dir):
+        if i.kind == pcFile:
+          files.add(i.path)
+    return files
+
+method get(fl : FilterList) : seq[string] =
+    var files : seq[string] = @[]
+    for i in fl.origin.get():
+        if not fl.exclude.contains(i.splitFile().name):
+            files.add(i)
+    if files.len == 0:
+        raise newException(OSError, "No files in directory " & fl.origin.dir)
+    return files
+
+method get(sl : ShuffleList) : seq[string] =
+    randomize()
+    var files : seq[string] = sl.origin.get()
+    echo "Shuffling dir content"
+    files.shuffle()
+    return files
+
+proc toFile(pl : PlFromList) : string =
+    echo "Writing dir content to ", pl.filename
+    var file = open(pl.filename, mode=fmWrite)
+    for line in pl.files:
+      file.writeLine(line)
+    file.close()
+    return pl.filename
+
+method start(pl : Play) {.base.} =
+    echo "Starting ", pl.command
+    discard
+        startProcess(command=pl.command, args=pl.args).waitForExit()
+
+proc plVlc(filename : string) : Play =
+    new result
+    result.command = "/Applications/VLC.app/Contents/MacOS/VLC"
+    result.filename = filename
+    result.args = @["--intf=macosx", filename]
+
+method start(pl : PlTemp) =
+    pl.origin.start()
+    echo "Remove ", pl.origin.filename
+    pl.origin.filename.removeFile()
+
+if isMainModule:
+    if paramCount() == 0:
+        echo "Directory not specified"
+        echo "Usage: xplay <directory>"
+    else:
+        let dir = paramStr(1)
+        try:
+            PlTemp(
+                origin:
+                    plVlc(
+                        filename=
+                            PlFromList(
+                                filename:
+                                    playlist,
+                                files:
+                                    ShuffleList(
+                                        origin:
+                                            FilterList(
+                                                exclude:
+                                                    exclude,
+                                                origin:
+                                                    ScanDir(dir : dir)
+                                            )
+                                    ).get()
+                            ).toFile()
+                    )
+            ).start()
+        except:
+            echo getCurrentExceptionMsg(), ". Exit"
