@@ -73,7 +73,12 @@ proc plVlc(filename : string) : Play =
     new result
     result.command = "/Applications/VLC.app/Contents/MacOS/VLC"
     result.filename = filename
-    result.args = @["--intf=macosx", filename]
+    result.args = @[
+        "--intf=macosx",
+        "--video-on-top",
+        "--no-auto-preparse",
+        filename
+    ]
 
 method start(pl : PlTemp) =
     pl.origin.start()
