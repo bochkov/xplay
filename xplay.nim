@@ -35,7 +35,7 @@ method get(sd : ScanDir) : seq[string] {.base.} =
     if not existsDir(sd.dir):
         raise newException(OSError, "Directory " & sd.dir & " not exists")
     var files : seq[string] = @[]
-    for i in walkDir(sd.dir):
+    for i in walkDir(expandFilename(sd.dir)):
         if i.kind == pcFile:
           files.add(i.path)
     return files
@@ -47,6 +47,7 @@ method get(fl : FilterList) : seq[string] =
             files.add(i)
     if files.len == 0:
         raise newException(OSError, "No files in directory " & fl.origin.dir)
+    echo "Total files: ", files.len
     return files
 
 method get(sl : ShuffleList) : seq[string] =
@@ -60,7 +61,7 @@ proc toFile(pl : PlFromList) : string =
     echo "Writing dir content to ", pl.filename
     var file = open(pl.filename, mode=fmWrite)
     for line in pl.files:
-      file.writeLine(line)
+      file.writeLine("file://" & line)
     file.close()
     return pl.filename
 
