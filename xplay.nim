@@ -1,7 +1,6 @@
 import os
 import osproc
 import random
-import strutils
 
 const
     playlist = ".playlist.m3u"
@@ -32,7 +31,7 @@ type
 
 method get(sd : ScanDir) : seq[string] {.base.} =
     echo "Scan dir: " , sd.dir
-    if not existsDir(sd.dir):
+    if not dirExists(sd.dir):
         raise newException(OSError, "Directory " & sd.dir & " not exists")
     var files : seq[string] = @[]
     for i in walkDir(expandFilename(sd.dir)):
