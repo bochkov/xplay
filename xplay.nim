@@ -112,5 +112,5 @@ if isMainModule:
                             ).toFile()
                     )
             ).start()
-        except:
+        except CatchableError:
             echo getCurrentExceptionMsg(), ". Exit"
